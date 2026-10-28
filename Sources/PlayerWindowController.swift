@@ -285,6 +285,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
                 self.splashLog("sp_dc session", "NONE", cls: "warn", pct: 40)
             }
             self.splashSession = session != nil
+            self.splashCall("window.cp.session(\(session != nil))")
             self.finishSplashIfReady()
         }
     }

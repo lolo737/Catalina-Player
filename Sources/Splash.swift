@@ -29,21 +29,16 @@ enum Splash {
   h1 { font:400 54px/1 "Instrument Serif", Baskerville, "Hoefler Text", Georgia, serif; color:var(--cream); letter-spacing:-.5px; }
   .sub { color:var(--dim); font-size:16px; margin-top:6px; }
   .chip { font:500 13px Menlo, monospace; color:var(--cream); padding:8px 16px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.08); }
-  main { flex:1; display:flex; flex-direction:column; justify-content:center; width:min(760px, 100%); margin:0 auto; }
-  .bar { display:flex; height:16px; }
-  .seg { flex:1; margin-right:3px; background:rgba(255,255,255,.08); }
-  .seg:last-child { margin-right:0; }
-  .seg.on { background:var(--orange); box-shadow:0 0 10px rgba(245,154,82,.6); }
-  .meta { display:flex; justify-content:space-between; margin:10px 0 18px; font:700 12px Menlo, monospace; letter-spacing:3px; color:var(--cream); }
-  .meta .n { color:var(--orange); }
+  main { flex:1; display:flex; flex-direction:column; width:min(760px, 100%); margin:34px auto 0; }
   .blink { animation:blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity:0; } }
-  .term { height:244px; overflow:hidden; padding:16px 20px; background:rgba(11,11,28,.62); border:1px solid var(--line);
-    font:13px/1.55 Menlo, monospace; box-shadow:0 18px 40px rgba(5,2,20,.5); }
+  .term { flex:1; min-height:120px; max-height:260px; overflow:hidden; padding:6px 4px;
+    font:13px/1.6 Menlo, monospace; opacity:.55; background:none; border:0;
+    -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 22%, #000 100%); }
   .term .l { white-space:pre; overflow:hidden; text-overflow:ellipsis; color:var(--cream); }
   .ok { color:var(--green); } .warn { color:var(--orange); } .mute { color:rgba(255,255,255,.45); }
   .cursor { display:inline-block; width:8px; height:14px; background:var(--orange); vertical-align:-2px; animation:blink 1s steps(1) infinite; }
-  .signin { margin-top:20px; display:none; }
+  .signin { margin-bottom:22px; display:none; }
   .signin.show { display:block; animation:rise .4s ease-out; }
   @keyframes rise { from { transform:translateY(8px); opacity:0; } }
   .methods { display:flex; }
@@ -70,14 +65,11 @@ enum Splash {
   <header>
     <div class="brand">
       <div class="vinyl"></div>
-      <div><h1>Catalina Player</h1><div class="sub">Loading &nbsp;&middot;&nbsp; Spotify&rsquo;s own web player, in a real Mac window</div></div>
+      <div><h1>Catalina Player</h1><div class="sub">Spotify&rsquo;s own web player, in a real Mac window</div></div>
     </div>
     <div class="chip" id="chip">macOS</div>
   </header>
   <main>
-    <div class="bar" id="bar"></div>
-    <div class="meta"><span id="label">LOADING<span class="blink">_</span></span><span class="n" id="pct">0%</span></div>
-    <div class="term" id="term"></div>
     <div class="signin" id="signin">
       <div class="methods">
         <div class="m"><div class="top"><b>01</b>Sign In&hellip; &nbsp;<kbd>&#8679;&#8984;L</kbd></div>
@@ -91,6 +83,7 @@ enum Splash {
       </div>
       <button class="skip" id="b3">just show me Spotify (Esc)</button>
     </div>
+    <div class="term" id="term"></div>
   </main>
   <footer><span>SWIFT &middot; APPKIT &middot; WEBKIT &middot; MEDIAPLAYER</span><span>For the Macs the music left behind</span></footer>
 </div>
@@ -98,19 +91,12 @@ enum Splash {
 (function () {
   // Everything printed here is sent by the app as it happens: real versions, real checks,
   // real timings. The page only draws it.
-  var bar = document.getElementById('bar'), term = document.getElementById('term');
+  var term = document.getElementById('term');
   [[9,4],[27,12],[47,6],[63,15],[81,7],[94,18],[19,21],[74,3],[55,19]].forEach(function (p) {
     var st = document.createElement('div'); st.className = 'star'; st.style.left = p[0] + '%'; st.style.top = p[1] + '%';
     document.body.insertBefore(st, document.body.firstChild); });
-  var segs = [], shown = 0, target = 0;
-  for (var i = 0; i < 24; i++) { var s = document.createElement('div'); s.className = 'seg'; bar.appendChild(s); segs.push(s); }
+  var signinShown = false;
   function post(action) { try { window.webkit.messageHandlers.catalinaSplash.postMessage({ action: action }); } catch (e) {} }
-  setInterval(function () {
-    if (shown < target) shown = Math.min(target, shown + 1);
-    document.getElementById('pct').textContent = shown + '%';
-    var on = Math.round(shown / 100 * segs.length);
-    for (var i = 0; i < segs.length; i++) segs[i].className = 'seg' + (i < on ? ' on' : '');
-  }, 18);
   function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   function add(html) {
     var old = term.querySelector('.cursor'); if (old) old.remove();
@@ -130,17 +116,17 @@ enum Splash {
       } else {
         add('<span class="' + (o.c || '') + '">' + t + '</span>');
       }
-      if (o.p) target = Math.max(target, o.p);
+    },
+    session: function (signedIn) {
+      if (!signedIn && !signinShown) { signinShown = true; document.getElementById('signin').className = 'signin show'; }
     },
     done: function (signedIn) {
-      target = 100;
-      document.getElementById('label').textContent = 'READY';
       if (signedIn) {
         add('<span class="ok">&gt; signed in. press play.</span>  <span class="mute">sign-in options any time: &#8679;&#8984;L</span>');
         setTimeout(function () { post('skip'); }, 1800);
       } else {
-        add('<span class="warn">&gt; not signed in: pick a method below</span>');
-        document.getElementById('signin').className = 'signin show';
+        add('<span class="warn">&gt; not signed in: pick a method above</span>');
+        window.cp.session(false);
       }
     }
   };
