@@ -5,15 +5,18 @@ import Foundation
 /// lays out the two ways to sign in. Talks to the app through `catalinaSplash` messages:
 ///   hello · signIn · cookie · skip     (app → page: window.cp.update({session, loaded}))
 enum Splash {
-    static let html = #"""
+    static var html: String { template.replacingOccurrences(of: "/*FONTS*/", with: Fonts.css) }
+
+    private static let template = #"""
 <!doctype html>
 <html><head><meta charset="utf-8">
 <style>
+/*FONTS*/
   /* Same look as docs/how-it-works.png: dusk sky, stars, serif title, orange accents, square corners. */
   :root { --cream:#FBEFDF; --orange:#F59A52; --green:#7CFFB0; --dim:rgba(255,255,255,.62); --line:rgba(255,255,255,.14); }
   * { box-sizing:border-box; margin:0; padding:0; border-radius:0; }
   html,body { height:100%; overflow:hidden; cursor:default; -webkit-user-select:none; }
-  body { font:15px/1.5 "Avenir Next", "DM Sans", "Helvetica Neue", sans-serif; color:#fff;
+  body { font:15px/1.5 "DM Sans", "Avenir Next", "Helvetica Neue", sans-serif; color:#fff;
     background:linear-gradient(180deg, #0F1230 0%, #2E1A55 50%, #7A3657 82%, #D9773F 100%); }
   .glow { position:fixed; left:50%; bottom:-260px; width:1300px; height:520px; margin-left:-650px; border-radius:50%;
     background:#FF9A4D; opacity:.5; filter:blur(140px); pointer-events:none; }
@@ -21,19 +24,27 @@ enum Splash {
   .page { position:relative; height:100%; display:flex; flex-direction:column; padding:40px 56px 28px; }
   header { display:flex; align-items:center; justify-content:space-between; }
   .brand { display:flex; align-items:center; }
-  .vinyl { width:72px; height:72px; border-radius:50%; margin-right:22px; flex:none;
-    background:radial-gradient(circle, #0D0D12 0 6%, #FAB060 7% 21%, #F2803A 22% 37%, #0D0D12 38% 46%,
-      #2C2C38 47% 48%, #0D0D12 49% 58%, #2C2C38 59% 60%, #0D0D12 61% 70%, #2C2C38 71% 72%, #0D0D12 73%);
-    box-shadow:0 10px 24px rgba(0,0,0,.45); animation:spin 1.8s linear infinite; }
+  .vinyl { position:relative; width:76px; height:76px; border-radius:50%; margin-right:22px; flex:none;
+    background:radial-gradient(circle, #0D0D12 0 5%, #FFD08A 6% 12%, #F59A52 13% 30%, #E0602A 31% 34%, #111118 35% 40%,
+      #3A3A4A 41% 42%, #111118 43% 50%, #3A3A4A 51% 52%, #111118 53% 60%, #3A3A4A 61% 62%, #111118 63% 70%,
+      #3A3A4A 71% 72%, #111118 73% 96%, #4A4A5C 97%);
+    box-shadow:0 10px 26px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.08); }
+  .vinyl::before { content:""; position:absolute; inset:0; border-radius:50%; animation:spin 1.8s linear infinite;
+    background:repeating-radial-gradient(circle, rgba(255,255,255,.05) 0 1px, transparent 1px 3px);
+    -webkit-mask:radial-gradient(circle, transparent 35%, #000 36%); }
+  .vinyl::after { content:""; position:absolute; inset:0; border-radius:50%; pointer-events:none;
+    background:conic-gradient(from 20deg, transparent 0deg, rgba(255,255,255,.55) 22deg, transparent 50deg,
+      transparent 180deg, rgba(255,255,255,.34) 202deg, transparent 230deg);
+    -webkit-mask:radial-gradient(circle, transparent 35%, #000 36%); }
   @keyframes spin { to { transform:rotate(360deg); } }
-  h1 { font:400 54px/1 "Instrument Serif", Baskerville, "Hoefler Text", Georgia, serif; color:var(--cream); letter-spacing:-.5px; }
+  h1 { font:400 54px/1 "Instrument Serif", Baskerville, Georgia, serif; color:var(--cream); letter-spacing:-.5px; }
   .sub { color:var(--dim); font-size:16px; margin-top:6px; }
-  .chip { font:500 13px Menlo, monospace; color:var(--cream); padding:8px 16px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.08); }
+  .chip { font:500 13px "JetBrains Mono", Menlo, monospace; color:var(--cream); padding:8px 16px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.08); }
   main { flex:1; display:flex; flex-direction:column; width:min(760px, 100%); margin:34px auto 0; }
   .blink { animation:blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity:0; } }
   .term { flex:1; min-height:120px; max-height:260px; overflow:hidden; padding:6px 4px;
-    font:13px/1.6 Menlo, monospace; opacity:.55; background:none; border:0;
+    font:500 13px/1.6 "JetBrains Mono", Menlo, monospace; opacity:.55; background:none; border:0;
     -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 22%, #000 100%); }
   .term .l { white-space:pre; overflow:hidden; text-overflow:ellipsis; color:var(--cream); }
   .ok { color:var(--green); } .warn { color:var(--orange); } .mute { color:rgba(255,255,255,.45); }
@@ -46,18 +57,18 @@ enum Splash {
     background:rgba(11,11,28,.6); border:1px solid var(--line); box-shadow:0 18px 40px rgba(5,2,20,.5); }
   .m:first-child { border-color:rgba(245,154,82,.9); }
   .m:last-child { margin-right:0; }
-  .m .top { font:500 14px Menlo, monospace; color:var(--cream); }
+  .m .top { font:500 14px "JetBrains Mono", Menlo, monospace; color:var(--cream); }
   .m .top b { color:var(--orange); margin-right:8px; }
-  .m .role { font:italic 26px/1.2 "Instrument Serif", Baskerville, "Hoefler Text", Georgia, serif; margin:8px 0 6px; }
-  .m p { color:rgba(255,255,255,.74); font-size:14px; flex:1; }
-  kbd { font:600 12px Menlo, monospace; color:var(--cream); padding:1px 6px; border:1px solid rgba(255,255,255,.4); }
-  button { margin-top:16px; padding:11px; font:700 12px Menlo, monospace; letter-spacing:2px; cursor:pointer;
+  .m .role { font:italic 26px/1.2 "Instrument Serif", Baskerville, Georgia, serif; margin:8px 0 6px; }
+  .m p { color:rgba(255,255,255,.74); font-size:15px; line-height:1.5; flex:1; }
+  kbd { font:700 12px "JetBrains Mono", Menlo, monospace; color:var(--cream); padding:1px 6px; border:1px solid rgba(255,255,255,.4); }
+  button { margin-top:16px; padding:11px; font:700 12px "JetBrains Mono", Menlo, monospace; letter-spacing:2px; cursor:pointer;
     color:#1A1230; background:var(--cream); border:0; }
   button:hover { background:#fff; }
   button:active { transform:translateY(1px); }
   .skip { display:block; margin:14px auto 0; padding:4px 10px; background:none; color:var(--dim); letter-spacing:1px; text-decoration:underline; }
   .skip:hover { background:none; color:#fff; }
-  footer { display:flex; justify-content:space-between; font:12px Menlo, monospace; color:rgba(255,255,255,.55); letter-spacing:1px; }
+  footer { display:flex; justify-content:space-between; font:500 12px "JetBrains Mono", Menlo, monospace; color:rgba(255,255,255,.55); letter-spacing:1px; }
 </style></head>
 <body>
 <div class="glow"></div>

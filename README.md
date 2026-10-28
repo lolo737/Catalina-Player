@@ -115,6 +115,6 @@ The in-page scripts are tested against a mock Spotify player bar: reading the ti
 
 ## 🙏 Credits & licence
 
-Icon and code by Niall O'Hara, MIT licensed (see [LICENSE](LICENSE)). Spotify is a trademark of Spotify AB; this project isn't affiliated with Spotify.
+Icon and code by Niall O'Hara, MIT licensed (see [LICENSE](LICENSE)). The welcome screen uses Instrument Serif, DM Sans and JetBrains Mono, embedded under the SIL Open Font License (see [Resources/FONT-LICENSES.txt](Resources/FONT-LICENSES.txt)). Spotify is a trademark of Spotify AB; this project isn't affiliated with Spotify.
 
 *Built in Skerries, for a Mac that still had plenty of music left in it.*
