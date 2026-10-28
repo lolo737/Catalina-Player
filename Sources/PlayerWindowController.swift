@@ -201,6 +201,14 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
 
     // MARK: - Sign-in helpers
 
+    static let signInPage = URL(string: "https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F")!
+
+    /// The ordinary Spotify sign-in page: email, password or code, Google, Facebook, Apple.
+    @objc func signIn(_ sender: Any?) {
+        showPlayer(nil)
+        webView.load(URLRequest(url: PlayerWindowController.signInPage))
+    }
+
     /// Wipes cookies and cached pages, for when the sign-in gets stuck in a loop.
     @objc func clearSignInData(_ sender: Any?) {
         let store = webView.configuration.websiteDataStore

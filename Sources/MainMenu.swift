@@ -30,8 +30,9 @@ enum MainMenu {
         submenu("Catalina Player", [
             item("About Catalina Player", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
             .separator(),
+            item("Sign In…", #selector(PlayerWindowController.signIn(_:)), "l", [.command, .shift], target: player),
             item("Sign In with a Session Cookie…", #selector(PlayerWindowController.signInWithCookie(_:)), target: player),
-            item("Clear Sign-in Data", #selector(PlayerWindowController.clearSignInData(_:)), target: player),
+            item("Sign Out and Clear Data", #selector(PlayerWindowController.clearSignInData(_:)), target: player),
             .separator(),
             item("Hide Catalina Player", #selector(NSApplication.hide(_:)), "h"),
             item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
