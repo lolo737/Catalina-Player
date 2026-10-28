@@ -31,6 +31,12 @@ It doesn't imitate Spotify, rebuild it or tinker with it. It opens **open.spotif
 - **Playback shortcuts:** ⌘P play/pause, ⌃⌘→ next, ⌃⌘← previous.
 - **A safety net.** If Spotify says it can't play in this window, the app tells you and offers to open the same page in **Firefox**, which still supports Catalina, in one click.
 
+## 📟 The loading screen
+
+Every launch opens on an old-school loading screen with a live log of what the app is actually doing: your macOS and WebKit versions, the media keys being wired, what's in the cookie store, and the real request and load times for Spotify's page. If you're signed in it gets out of the way by itself. If you're not, it shows the two ways in: **Method 01**, Spotify's normal sign-in (⇧⌘L any time), and **Method 02**, the session cookie from Firefox. Bring it back from *Catalina Player → Show Loading Screen*.
+
+<p align="center"><img src="docs/loading-screen.png" alt="Retro loading screen: a spinning vinyl, CATALINA PLAYER in chunky letters, a segmented progress bar at 100%, a terminal log of real start-up checks, and two sign-in methods" width="100%"></p>
+
 ## 🛠️ Build it on your Mac (2 minutes)
 
 **1. Get Apple's free build tools** (once; skip if you have Xcode):

@@ -5,31 +5,35 @@ import MediaPlayer
 /// and shows the current track in macOS's Now Playing.
 final class MediaKeys {
     private weak var player: PlayerWindowController?
+    /// How many remote commands were actually wired up (shown on the loading screen).
+    private(set) var registered = 0
 
     init(player: PlayerWindowController) {
         self.player = player
         let center = MPRemoteCommandCenter.shared()
+        var tokens: [Any] = []
 
-        center.togglePlayPauseCommand.addTarget { [weak self] _ in
+        tokens.append(center.togglePlayPauseCommand.addTarget { [weak self] _ in
             self?.player?.control("toggle")
             return .success
-        }
-        center.playCommand.addTarget { [weak self] _ in
+        })
+        tokens.append(center.playCommand.addTarget { [weak self] _ in
             self?.player?.control("play")
             return .success
-        }
-        center.pauseCommand.addTarget { [weak self] _ in
+        })
+        tokens.append(center.pauseCommand.addTarget { [weak self] _ in
             self?.player?.control("pause")
             return .success
-        }
-        center.nextTrackCommand.addTarget { [weak self] _ in
+        })
+        tokens.append(center.nextTrackCommand.addTarget { [weak self] _ in
             self?.player?.control("next")
             return .success
-        }
-        center.previousTrackCommand.addTarget { [weak self] _ in
+        })
+        tokens.append(center.previousTrackCommand.addTarget { [weak self] _ in
             self?.player?.control("prev")
             return .success
-        }
+        })
+        registered = tokens.count
     }
 
     func update(_ info: NowPlaying) {

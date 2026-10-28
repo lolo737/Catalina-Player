@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         player = PlayerWindowController()
         mediaKeys = MediaKeys(player: player)
+        player.reportMediaKeys(mediaKeys.registered)
         player.onNowPlaying = { [weak self] info in
             self?.mediaKeys.update(info)
         }
