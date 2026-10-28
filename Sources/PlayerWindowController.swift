@@ -57,6 +57,9 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
 
     static func userAgent(for url: URL) -> String {
         let host = url.host?.lowercased() ?? ""
+        // Off by default: switching identity mid-sign-in broke Spotify's redirects (white/black
+        // screens) on a real Catalina Mac. Opt in with: defaults write ... HonestSignIn -bool true
+        guard UserDefaults.standard.bool(forKey: "HonestSignIn") else { return userAgent }
         let isSignIn = signInHosts.contains { host == $0 || host.hasSuffix("." + $0) }
         guard isSignIn else { return userAgent }
         if let custom = UserDefaults.standard.string(forKey: "LoginUserAgent"), !custom.isEmpty { return custom }
