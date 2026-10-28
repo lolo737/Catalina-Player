@@ -31,11 +31,11 @@ It doesn't imitate Spotify, rebuild it or tinker with it. It opens **open.spotif
 - **Playback shortcuts:** ⌘P play/pause, ⌃⌘→ next, ⌃⌘← previous.
 - **A safety net.** If Spotify says it can't play in this window, the app tells you and offers to open the same page in **Firefox**, which still supports Catalina, in one click.
 
-## 📟 The loading screen
+## 📟 The welcome screen
 
-Every launch opens on a loading screen (same dusk look as the diagram above, with an old-school progress bar) with a live log of what the app is actually doing: your macOS and WebKit versions, the media keys being wired, what's in the cookie store, and the real request and load times for Spotify's page. If you're signed in it gets out of the way by itself. If you're not, the two ways in appear at the top as soon as it knows: **Method 01**, Spotify's normal sign-in (⇧⌘L any time), and **Method 02**, the session cookie from Firefox. Bring it back from *Catalina Player → Show Loading Screen*.
+Every launch opens on a welcome screen in the same dusk style as the diagram above. Beneath it runs a see-through log of what the app is actually doing: your macOS and WebKit versions, the media keys being wired, what's in the cookie store, and the real request and load times for Spotify's page. If you're signed in it gets out of the way by itself. If you're not, the two ways in appear at the top as soon as it knows: **01, the front door**: Spotify's normal sign-in (⇧⌘L any time). **02, the side door**: the session cookie from Firefox. Bring it back from *Catalina Player → Show Loading Screen*.
 
-<p align="center"><img src="docs/loading-screen.png" alt="Loading screen in the same dusk style as the diagram: spinning vinyl, Catalina Player title, macOS version, an orange segmented progress bar, a terminal log of real start-up checks, and two sign-in methods: the front door and the side door" width="100%"></p>
+<p align="center"><img src="docs/loading-screen.png" alt="Welcome screen in the same dusk style as the diagram: spinning vinyl, Catalina Player title, macOS version, two sign-in methods (the front door and the side door) and a see-through log of real start-up checks beneath" width="100%"></p>
 
 ## 🛠️ Build it on your Mac (2 minutes)
 
