@@ -72,6 +72,8 @@ Either way you end up with Spotify on your Catalina Mac. If you hit the second c
 
 ## 🔍 How it works
 
+<p align="center"><img src="docs/how-it-works.png" alt="Diagram of Catalina Player: main.swift starts the app, AppDelegate opens the window, PlayerWindowController puts Spotify's own web player in a Mac window, and MediaKeys, MainMenu and Scripts feed into it. The window loads open.spotify.com untouched." width="100%"></p>
+
 - **Swift + AppKit + WebKit**, about 500 lines, no third-party code. Built for Catalina's own Swift toolchain, so no Xcode project or modern SDK is needed.
 - The window tells Spotify it's **Safari 15 on Catalina**, which is true: it's the same WebKit engine Safari uses on 10.15.
 - The media keys go through **MPRemoteCommandCenter** and press Spotify's own on-screen buttons. The now-playing text is read from the player bar. Neither changes anything on the page.
