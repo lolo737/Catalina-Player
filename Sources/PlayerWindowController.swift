@@ -358,6 +358,28 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
     }
 
     /// Wipes cookies and cached pages, for when the sign-in gets stuck in a loop.
+    /// Runs JavaScript typed into the console and describes the result.
+    func evaluateForConsole(_ code: String, _ done: @escaping (String, Bool) -> Void) {
+        webView.evaluateJavaScript(code) { result, error in
+            if let error = error as NSError? {
+                let message = (error.userInfo["WKJavaScriptExceptionMessage"] as? String) ?? error.localizedDescription
+                done(message + (message.contains("unsupported type") ? "  (tip: wrap it in JSON.stringify(...))" : ""), false)
+                return
+            }
+            done(PlayerWindowController.describe(result), true)
+        }
+    }
+
+    static func describe(_ value: Any?) -> String {
+        guard let value = value else { return "undefined" }
+        if let s = value as? String { return "\"" + s + "\"" }
+        if let n = value as? NSNumber { return n.stringValue }
+        if JSONSerialization.isValidJSONObject(value),
+           let data = try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted]),
+           let text = String(data: data, encoding: .utf8) { return text }
+        return "\(value)"
+    }
+
     @objc func showDiagnostics(_ sender: Any?) {
         NSWorkspace.shared.activateFileViewerSelecting([Diagnostics.fileURL])
     }
@@ -404,6 +426,10 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
 
     func handle(_ message: WKScriptMessage) {
         guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+        if type == "console" {
+            Diagnostics.console((body["level"] as? String) ?? "log", (body["text"] as? String) ?? "")
+            return
+        }
         if type == "jsError" {
             var line = "JS  " + ((body["text"] as? String) ?? "error")
             if let src = body["src"] as? String, !src.isEmpty {

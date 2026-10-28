@@ -13,8 +13,12 @@ enum Diagnostics {
         return logs.appendingPathComponent("CatalinaPlayer.log")
     }()
 
+    /// Every line, as written (the console window listens here).
+    static var onLine: ((String) -> Void)?
+
     private static var started = false
     private static var jsErrors = 0
+    private static var consoleLines = 0
     private static let clock: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "HH:mm:ss.SSS"; return f
     }()
@@ -23,11 +27,14 @@ enum Diagnostics {
         started = true
         let text = header.joined(separator: "\n") + "\n" + String(repeating: "-", count: 60) + "\n"
         try? text.write(to: fileURL, atomically: true, encoding: .utf8)
+        header.forEach { onLine?($0) }
     }
 
     static func log(_ line: String) {
         guard started else { return }
-        let entry = "\(clock.string(from: Date()))  \(line)\n"
+        let stamped = "\(clock.string(from: Date()))  \(line)"
+        onLine?(stamped)
+        let entry = stamped + "\n"
         guard let data = entry.data(using: .utf8) else { return }
         if let handle = try? FileHandle(forWritingTo: fileURL) {
             handle.seekToEndOfFile()
@@ -40,6 +47,13 @@ enum Diagnostics {
     static func jsError(_ line: String) {
         jsErrors += 1
         if jsErrors <= 80 { log(line) } else if jsErrors == 81 { log("(further JavaScript errors not logged)") }
+    }
+
+    /// Spotify's own console output; it can be chatty, so keep the first 1,500 lines.
+    static func console(_ level: String, _ text: String) {
+        consoleLines += 1
+        if consoleLines <= 1500 { log("CONSOLE \(level)  \(text)") }
+        else if consoleLines == 1501 { log("(further console output not logged)") }
     }
 
     /// host + path, plus the names (never the values) of any query parameters.
@@ -63,6 +77,27 @@ enum Diagnostics {
         }
         send({ type: 'jsError', text: String(e.message || 'error'), src: String(e.filename || '').split('?')[0], line: e.lineno || 0 });
       }, true);
+      // Mirror console.log/info/warn/error/debug to the app. Long token-like strings are
+      // blanked out before they leave the page, so nothing secret reaches the log.
+      function clean(t) { return String(t).replace(/[A-Za-z0-9_\-\.]{40,}/g, '[redacted]').slice(0, 600); }
+      ['log', 'info', 'warn', 'error', 'debug'].forEach(function (level) {
+        var original = console[level];
+        if (typeof original !== 'function') return;
+        console[level] = function () {
+          try {
+            var parts = [];
+            for (var i = 0; i < arguments.length; i++) {
+              var a = arguments[i], t;
+              if (typeof a === 'string') t = a;
+              else if (a instanceof Error) t = a.name + ': ' + a.message;
+              else { try { t = JSON.stringify(a); } catch (e) { t = undefined; } if (t === undefined) t = String(a); }
+              parts.push(t);
+            }
+            send({ type: 'console', level: level, text: clean(parts.join(' ')) });
+          } catch (e) {}
+          return original.apply(console, arguments);
+        };
+      });
       window.addEventListener('unhandledrejection', function (e) {
         var r = e.reason;
         send({ type: 'jsError', text: 'unhandled promise: ' + String((r && (r.message || r)) || '?') });

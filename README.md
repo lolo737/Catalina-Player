@@ -91,6 +91,7 @@ Either way you end up with Spotify on your Catalina Mac. If you hit the second c
 - Logins with Google, Facebook or Apple open in a small sign-in window, as they would in Safari.
 - **Stuck signing in?** Spotify's sign-in pages are newer than Catalina's web engine and can loop. The dependable route: *Catalina Player → Sign In with a Session Cookie…* lets you sign in once in Firefox and paste your `sp_dc` cookie across. It's your own sign-in, so treat it like a password. *Sign In…* (⇧⌘L) opens the normal sign-in page any time, and *Sign Out and Clear Data* starts afresh.
 - Right-click → **Inspect Element** opens Safari's Web Inspector, for reading page errors.
+- **Debug console:** *View → Debug Console* (⌥⌘C) shows that log live, plus Spotify's own console messages, and has a command line that runs JavaScript in the Spotify page. Tick *View → Open Console at Launch* to have it there from the first second.
 - **Something not working?** *Catalina Player → Show Diagnostics Log* reveals `~/Library/Logs/CatalinaPlayer.log`: page loads and redirects, HTTP status, JavaScript errors, which modern browser features this Mac's engine lacks, and each sign-in step. It never records cookie values, passwords or query-string values, so it's safe to attach to an issue.
 
 ```

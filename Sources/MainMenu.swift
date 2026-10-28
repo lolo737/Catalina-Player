@@ -63,6 +63,13 @@ enum MainMenu {
             item("Zoom In", #selector(PlayerWindowController.zoomInPage(_:)), "=", target: player),
             item("Zoom Out", #selector(PlayerWindowController.zoomOutPage(_:)), "-", target: player),
             .separator(),
+            item("Debug Console", #selector(DebugConsole.toggle(_:)), "c", [.command, .option], target: DebugConsole.shared),
+            {
+                let i = item("Open Console at Launch", #selector(DebugConsole.toggleOpenAtLaunch(_:)), target: DebugConsole.shared)
+                i.state = DebugConsole.openAtLaunch ? .on : .off
+                return i
+            }(),
+            .separator(),
             item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control])
         ])
 
