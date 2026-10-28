@@ -35,9 +35,17 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
 
     static let home = URL(string: "https://open.spotify.com/")!
 
-    /// Spotify checks which browser it's talking to. This is Safari 15.6 on Catalina,
-    /// the same engine this window uses.
-    static let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6.1 Safari/605.1.15"
+    /// Spotify turns away browsers it considers too old ("Unsupported browser"), judging by the
+    /// version number in this string. Every current Safari still reports "Mac OS X 10_15_7",
+    /// so this reads as a recent Safari. The engine underneath is still Catalina's WebKit.
+    /// If Spotify ever moves the goalposts, override it without rebuilding:
+    ///   defaults write io.github.lolo737.catalinaplayer UserAgent "Mozilla/5.0 (...)"
+    static let defaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15"
+
+    static var userAgent: String {
+        if let custom = UserDefaults.standard.string(forKey: "UserAgent"), !custom.isEmpty { return custom }
+        return defaultUserAgent
+    }
 
     var onNowPlaying: ((NowPlaying) -> Void)?
 

@@ -13,7 +13,9 @@ enum Scripts {
         "protected content",
         "browser doesn't support",
         "browser isn't supported",
-        "This browser doesn't support"
+        "This browser doesn't support",
+        "Unsupported browser",
+        "unavailable on this browser"
       ];
       var sent = false;
       function check() {
