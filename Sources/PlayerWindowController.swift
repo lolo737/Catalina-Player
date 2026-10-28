@@ -242,7 +242,9 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
 
         let os = ProcessInfo.processInfo.operatingSystemVersion
         splashLog("$ open \"Catalina Player.app\"", cls: "mute")
-        splashLog("macOS \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)", "OK", pct: 6)
+        let osText = "macOS \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
+        splashCall("window.cp.chip(\(PlayerWindowController.jsString(osText)))")
+        splashLog(osText, "OK", pct: 6)
         let webkit = Bundle(for: WKWebView.self).infoDictionary
         let wkVersion = (webkit?["CFBundleVersion"] as? String) ?? "unknown"
         splashLog("WebKit \(wkVersion)", "OK", pct: 12)
@@ -255,6 +257,12 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
     func reportMediaKeys(_ count: Int) {
         splashLog("media keys: \(count) of 5 commands wired", count == 5 ? "OK" : "PARTIAL",
                   cls: count == 5 ? "ok" : "warn", pct: 24)
+    }
+
+    static func jsString(_ text: String) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: [text], options: []),
+              let json = String(data: data, encoding: .utf8) else { return "\"\"" }
+        return String(json.dropFirst().dropLast())     // ["…"] → "…"
     }
 
     static func safariVersion(in agent: String) -> String {
