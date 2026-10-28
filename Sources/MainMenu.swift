@@ -34,6 +34,7 @@ enum MainMenu {
             item("Sign In with a Session Cookie…", #selector(PlayerWindowController.signInWithCookie(_:)), target: player),
             item("Sign Out and Clear Data", #selector(PlayerWindowController.clearSignInData(_:)), target: player),
             item("Show Loading Screen", #selector(PlayerWindowController.showSplash(_:)), target: player),
+            item("Show Diagnostics Log", #selector(PlayerWindowController.showDiagnostics(_:)), target: player),
             .separator(),
             item("Hide Catalina Player", #selector(NSApplication.hide(_:)), "h"),
             item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),

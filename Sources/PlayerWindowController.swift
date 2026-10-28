@@ -111,6 +111,13 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
     }
 
     private func setUpWebView(in win: NSWindow) {
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        let info = Bundle.main.infoDictionary
+        Diagnostics.start(header: [
+            "Catalina Player diagnostics (no cookie values, passwords or query values are recorded)",
+            "app \((info?["CFBundleShortVersionString"] as? String) ?? "?")  macOS \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)  WebKit \((Bundle(for: WKWebView.self).infoDictionary?["CFBundleVersion"] as? String) ?? "?")",
+            "identity sent: \(PlayerWindowController.userAgent)"
+        ])
         let config = WKWebViewConfiguration()
         config.websiteDataStore = WKWebsiteDataStore.default()      // stay logged in between launches
         config.mediaTypesRequiringUserActionForPlayback = []
@@ -120,6 +127,10 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
         config.userContentController.add(ScriptHandler(owner: self), name: "catalina")
         config.userContentController.addUserScript(
             WKUserScript(source: Scripts.watchForProblems, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        config.userContentController.addUserScript(
+            WKUserScript(source: Diagnostics.errorScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        config.userContentController.addUserScript(
+            WKUserScript(source: Diagnostics.featureScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
 
         let container = NSView(frame: win.contentView?.bounds ?? .zero)
         container.autoresizingMask = [.width, .height]
@@ -341,12 +352,18 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
 
     /// The ordinary Spotify sign-in page: email, password or code, Google, Facebook, Apple.
     @objc func signIn(_ sender: Any?) {
+        Diagnostics.log("SIGN-IN  front door opened")
         showPlayer(nil)
         webView.load(URLRequest(url: PlayerWindowController.signInPage))
     }
 
     /// Wipes cookies and cached pages, for when the sign-in gets stuck in a loop.
+    @objc func showDiagnostics(_ sender: Any?) {
+        NSWorkspace.shared.activateFileViewerSelecting([Diagnostics.fileURL])
+    }
+
     @objc func clearSignInData(_ sender: Any?) {
+        Diagnostics.log("SIGN-IN  cleared all website data")
         let store = webView.configuration.websiteDataStore
         store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) { [weak self] in
             self?.webView.customUserAgent = PlayerWindowController.userAgent
@@ -371,7 +388,13 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
             .name: "sp_dc", .value: value, .domain: ".spotify.com", .path: "/",
             .secure: "TRUE", .expires: Date().addingTimeInterval(365 * 24 * 3600)
         ]) else { return }
-        webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) { [weak self] in
+        Diagnostics.log("SIGN-IN  side door: pasted sp_dc (\(value.count) characters)")
+        let store = webView.configuration.websiteDataStore.httpCookieStore
+        store.setCookie(cookie) { [weak self] in
+            store.getAllCookies { cookies in
+                let saved = cookies.filter { $0.name == "sp_dc" }
+                Diagnostics.log("SIGN-IN  sp_dc stored: \(saved.isEmpty ? "NO" : "yes, domain " + saved.map { $0.domain }.joined(separator: ", "))")
+            }
             self?.webView.customUserAgent = PlayerWindowController.userAgent
             self?.webView.load(URLRequest(url: PlayerWindowController.home))
         }
@@ -381,6 +404,26 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
 
     func handle(_ message: WKScriptMessage) {
         guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+        if type == "jsError" {
+            var line = "JS  " + ((body["text"] as? String) ?? "error")
+            if let src = body["src"] as? String, !src.isEmpty {
+                line += "  (" + (URL(string: src).map { Diagnostics.describe($0) } ?? src)
+                if let n = body["line"] as? Int, n > 0 { line += ":\(n)" }
+                line += ")"
+            }
+            Diagnostics.jsError(line)
+            return
+        }
+        if type == "features" {
+            let missing = (body["missing"] as? [String]) ?? []
+            let page = (body["href"] as? String) ?? ""
+            Diagnostics.log(missing.isEmpty ? "FEATURES  \(page): nothing missing"
+                                            : "FEATURES  \(page): missing " + missing.joined(separator: "; "))
+            return
+        }
+        if type == "problem" {
+            Diagnostics.log("SPOTIFY SAYS  \((body["text"] as? String) ?? "")")
+        }
         if type == "problem" && !warnedAboutPlayback {
             warnedAboutPlayback = true
             let said = (body["text"] as? String) ?? "it can't play here"
@@ -431,6 +474,10 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
         guard let url = navigationAction.request.url, let scheme = url.scheme?.lowercased() else {
             decisionHandler(.allow); return
         }
+        if navigationAction.targetFrame?.isMainFrame ?? true {
+            let who = webView === self.webView ? "PAGE" : "POPUP"
+            Diagnostics.log("\(who)  \(navigationAction.request.httpMethod ?? "GET") \(Diagnostics.describe(url))")
+        }
         if scheme == "spotify" {                 // links meant for the desktop app: stay put
             decisionHandler(.cancel); return
         }
@@ -466,6 +513,9 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
            let http = navigationResponse.response as? HTTPURLResponse {
             lastStatus = http.statusCode
         }
+        if navigationResponse.isForMainFrame, let http = navigationResponse.response as? HTTPURLResponse {
+            Diagnostics.log("  HTTP \(http.statusCode)  \(Diagnostics.describe(http.url))")
+        }
         decisionHandler(.allow)
     }
 
@@ -489,6 +539,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
         guard webView === self.webView else { return }
         let ns = error as NSError
         if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return }   // our own redirects
+        Diagnostics.log("LOAD ERROR  \(ns.domain) \(ns.code): \(ns.localizedDescription)")
         splashNavigation("error \(ns.code): \(ns.localizedDescription)", "FAILED", cls: "warn", pct: 90)
         if !splashLoaded { splashLoaded = true; finishSplashIfReady() }
     }
