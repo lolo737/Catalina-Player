@@ -47,6 +47,22 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
         return defaultUserAgent
     }
 
+    /// The sign-in pages run bot checks that compare what the browser claims to be with how it
+    /// actually behaves. Claiming Safari 18 on a Safari 15 engine looks like a bot, and the login
+    /// quietly loops. So the sign-in pages get the honest answer: Safari 15.6 on Catalina.
+    /// Override with: defaults write io.github.lolo737.catalinaplayer LoginUserAgent "..."
+    static let honestUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6.1 Safari/605.1.15"
+
+    static let signInHosts = ["accounts.spotify.com", "challenge.spotify.com", "login.spotify.com"]
+
+    static func userAgent(for url: URL) -> String {
+        let host = url.host?.lowercased() ?? ""
+        let isSignIn = signInHosts.contains { host == $0 || host.hasSuffix("." + $0) }
+        guard isSignIn else { return userAgent }
+        if let custom = UserDefaults.standard.string(forKey: "LoginUserAgent"), !custom.isEmpty { return custom }
+        return honestUserAgent
+    }
+
     var onNowPlaying: ((NowPlaying) -> Void)?
 
     private var webView: WKWebView!
@@ -86,6 +102,8 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
         config.websiteDataStore = WKWebsiteDataStore.default()      // stay logged in between launches
         config.mediaTypesRequiringUserActionForPlayback = []
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
+        // Right-click → Inspect Element, so page errors can be read in the console.
+        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         config.userContentController.add(ScriptHandler(owner: self), name: "catalina")
         config.userContentController.addUserScript(
             WKUserScript(source: Scripts.watchForProblems, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
@@ -178,6 +196,40 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
         }
     }
 
+    // MARK: - Sign-in helpers
+
+    /// Wipes cookies and cached pages, for when the sign-in gets stuck in a loop.
+    @objc func clearSignInData(_ sender: Any?) {
+        let store = webView.configuration.websiteDataStore
+        store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) { [weak self] in
+            self?.webView.customUserAgent = PlayerWindowController.userAgent
+            self?.webView.load(URLRequest(url: PlayerWindowController.home))
+        }
+    }
+
+    /// Plan B: sign in once in Firefox, copy its Spotify "sp_dc" cookie, paste it here.
+    @objc func signInWithCookie(_ sender: Any?) {
+        let alert = NSAlert()
+        alert.messageText = "Sign in with a session cookie"
+        alert.informativeText = "1. Sign in to open.spotify.com in Firefox.\n2. Press ⌥⌘I, open the Storage tab → Cookies → https://open.spotify.com.\n3. Copy the Value of the cookie named sp_dc and paste it below.\n\nIt's your own sign-in. Treat it like a password and don't share it."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
+        field.placeholderString = "sp_dc value"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Sign In")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let value = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, let cookie = HTTPCookie(properties: [
+            .name: "sp_dc", .value: value, .domain: ".spotify.com", .path: "/",
+            .secure: "TRUE", .expires: Date().addingTimeInterval(365 * 24 * 3600)
+        ]) else { return }
+        webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) { [weak self] in
+            self?.webView.customUserAgent = PlayerWindowController.userAgent
+            self?.webView.load(URLRequest(url: PlayerWindowController.home))
+        }
+    }
+
     // MARK: - Messages from the page
 
     func handle(_ message: WKScriptMessage) {
@@ -240,6 +292,18 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
             NSWorkspace.shared.open(url)
             decisionHandler(.cancel); return
         }
+        // Switch identity between the player and the sign-in pages (see honestUserAgent).
+        // Only for whole-page GET loads, so form submissions are never replayed.
+        let wanted = PlayerWindowController.userAgent(for: url)
+        if (scheme == "http" || scheme == "https"),
+           navigationAction.targetFrame?.isMainFrame ?? true,
+           (navigationAction.request.httpMethod ?? "GET").uppercased() == "GET",
+           webView.customUserAgent != wanted {
+            webView.customUserAgent = wanted
+            decisionHandler(.cancel)
+            webView.load(navigationAction.request)
+            return
+        }
         decisionHandler(.allow)
     }
 
@@ -265,7 +329,8 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
         win.title = "Log in"
         let popup = WKWebView(frame: win.contentView?.bounds ?? .zero, configuration: configuration)
         popup.autoresizingMask = [.width, .height]
-        popup.customUserAgent = PlayerWindowController.userAgent
+        popup.customUserAgent = navigationAction.request.url.map(PlayerWindowController.userAgent(for:))
+            ?? PlayerWindowController.userAgent
         popup.navigationDelegate = self
         popup.uiDelegate = self
         win.contentView = popup
