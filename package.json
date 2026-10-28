@@ -1,0 +1,7 @@
+{
+  "name": "catalina-player-tests",
+  "private": true,
+  "description": "Tests for the in-page scripts. The app itself is Swift: see build.sh.",
+  "scripts": { "test": "node --test test/scripts.test.js" },
+  "devDependencies": { "jsdom": "^24.1.3" }
+}
