@@ -83,6 +83,9 @@ Either way you end up with Spotify on your Catalina Mac. If you hit the second c
   (`defaults delete io.github.lolo737.catalinaplayer UserAgent` puts it back.)
 - The media keys go through **MPRemoteCommandCenter** and press Spotify's own on-screen buttons. The now-playing text is read from the player bar. Neither changes anything on the page.
 - Logins with Google, Facebook or Apple open in a small sign-in window, as they would in Safari.
+- The sign-in pages run bot checks that compare what a browser claims to be with how it behaves, so they're told the honest truth (Safari 15.6 on Catalina). Only the player itself gets the modern disguise.
+- **Stuck signing in?** *Catalina Player → Clear Sign-in Data* starts afresh. If it still loops, *Sign In with a Session Cookie…* lets you sign in once in Firefox and paste your `sp_dc` cookie across. It's your own sign-in, so treat it like a password.
+- Right-click → **Inspect Element** opens Safari's Web Inspector, for reading page errors.
 
 ```
 Sources/
