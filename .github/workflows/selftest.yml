@@ -58,6 +58,8 @@ jobs:
             echo '```' >> "$GITHUB_STEP_SUMMARY"
             grep -E "FEATURES|COMPAT|DRM|RENDER|SPOTIFY SAYS|LOAD ERROR|SELF-TEST|HTTP|^identity" "results/$ua-CatalinaPlayer.log" | cut -c1-300 >> "$GITHUB_STEP_SUMMARY" || true
             echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "===== $ua: log =====";      cut -c1-400 "results/$ua-CatalinaPlayer.log" | grep -v "^.\{12\}  CONSOLE" || true
+            echo "===== $ua: summary ====="; cat "results/$ua-CatalinaPlayer-selftest.json" 2>/dev/null || echo "(no summary written)"
           done
       - uses: actions/upload-artifact@v7
         if: always()
