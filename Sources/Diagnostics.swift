@@ -32,7 +32,8 @@ enum Diagnostics {
 
     static func log(_ line: String) {
         guard started else { return }
-        let stamped = "\(clock.string(from: Date()))  \(line)"
+        let capped = line.count > 1200 ? String(line.prefix(1200)) + " …(cut)" : line
+        let stamped = "\(clock.string(from: Date()))  \(capped)"
         onLine?(stamped)
         let entry = stamped + "\n"
         guard let data = entry.data(using: .utf8) else { return }

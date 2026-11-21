@@ -44,6 +44,11 @@ jobs:
           swiftc -O -target arm64-apple-macos11.0 Sources/*.swift -o "$APP/Contents/MacOS/CatalinaPlayer"
           cp Resources/Info.plist "$APP/Contents/Info.plist"
           codesign --force --deep --sign - "$APP"
+      - name: Check the Intel build for macOS 10.15 still compiles on this image
+        run: |
+          swiftc -O -target x86_64-apple-macos10.15 Sources/*.swift -o /tmp/cp-x86_64
+          echo "minimum macOS recorded in the Intel binary:"; vtool -show-build /tmp/cp-x86_64 | grep -E "minos|sdk"
+          echo "linked libraries:"; otool -L /tmp/cp-x86_64 | tail -n +2 | awk '{print $1}'
       - name: Run unattended, once per browser identity
         run: |
           mkdir -p results
