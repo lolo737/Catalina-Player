@@ -47,9 +47,14 @@ jobs:
       - name: Run unattended, once per browser identity
         run: |
           mkdir -p results
-          for ua in honest modern; do
+          for ua in honest modern hostile offline; do
             rm -f ~/Library/Logs/CatalinaPlayer*
-            "build/Catalina Player.app/Contents/MacOS/CatalinaPlayer" --selftest 45 --ua $ua &
+            case $ua in
+              hostile) extra="--ua honest --hostile" ;;
+              offline) extra="--ua honest --home https://catalina-player-test.invalid/" ;;
+              *)       extra="--ua $ua" ;;
+            esac
+            "build/Catalina Player.app/Contents/MacOS/CatalinaPlayer" --selftest 45 $extra &
             pid=$!
             for i in $(seq 1 90); do kill -0 $pid 2>/dev/null || break; sleep 1; done
             kill $pid 2>/dev/null || true

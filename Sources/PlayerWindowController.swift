@@ -43,7 +43,7 @@ final class SplashHandler: NSObject, WKScriptMessageHandler {
 
 final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate {
 
-    static let home = URL(string: "https://open.spotify.com/")!
+    static let home: URL = SelfTest.homeOverride ?? URL(string: "https://open.spotify.com/")!
 
     /// Which browser the window says it is.
     ///
