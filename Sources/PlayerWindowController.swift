@@ -53,6 +53,8 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
     static let defaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15"
 
     static var userAgent: String {
+        if SelfTest.identity == "honest" { return honestUserAgent }
+        if SelfTest.identity == "modern" { return defaultUserAgent }
         if let custom = UserDefaults.standard.string(forKey: "UserAgent"), !custom.isEmpty { return custom }
         return defaultUserAgent
     }
@@ -79,6 +81,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
     var onNowPlaying: ((NowPlaying) -> Void)?
 
     private var webView: WKWebView!
+    var playerWebView: WKWebView { return webView }
     private var popups: [NSWindow] = []
     private var titleObservation: NSKeyValueObservation?
     private var pollTimer: Timer?
@@ -116,7 +119,8 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
         Diagnostics.start(header: [
             "Catalina Player diagnostics (no cookie values, passwords or query values are recorded)",
             "app \((info?["CFBundleShortVersionString"] as? String) ?? "?")  macOS \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)  WebKit \((Bundle(for: WKWebView.self).infoDictionary?["CFBundleVersion"] as? String) ?? "?")",
-            "identity sent: \(PlayerWindowController.userAgent)"
+            "identity sent: \(PlayerWindowController.userAgent)",
+            "compatibility shims: \(Compat.enabled ? "on" : "off")" + (SelfTest.isRunning ? "   SELF-TEST \(SelfTest.label)" : "")
         ])
         let config = WKWebViewConfiguration()
         config.websiteDataStore = WKWebsiteDataStore.default()      // stay logged in between launches
@@ -125,12 +129,16 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
         // Right-click → Inspect Element, so page errors can be read in the console.
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         config.userContentController.add(ScriptHandler(owner: self), name: "catalina")
-        config.userContentController.addUserScript(
-            WKUserScript(source: Scripts.watchForProblems, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
-        config.userContentController.addUserScript(
-            WKUserScript(source: Diagnostics.errorScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
-        config.userContentController.addUserScript(
-            WKUserScript(source: Diagnostics.featureScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        // Order matters: errors first, then the feature probe (sees the engine unshimmed),
+        // then the shim, then the end-of-document watchers.
+        let ucc = config.userContentController
+        ucc.addUserScript(WKUserScript(source: Diagnostics.errorScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        ucc.addUserScript(WKUserScript(source: Diagnostics.featureScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        if Compat.enabled {
+            ucc.addUserScript(WKUserScript(source: Compat.shim, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+        }
+        ucc.addUserScript(WKUserScript(source: Scripts.watchForProblems, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        ucc.addUserScript(WKUserScript(source: Diagnostics.renderScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
 
         let container = NSView(frame: win.contentView?.bounds ?? .zero)
         container.autoresizingMask = [.width, .height]
@@ -424,15 +432,49 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
 
     // MARK: - Messages from the page
 
+    /// A string field from a page message, capped: any page in the window can post here.
+    private static func field(_ body: [String: Any], _ key: String, _ fallback: String = "") -> String {
+        guard let s = body[key] as? String else { return fallback }
+        return s.count > 600 ? String(s.prefix(600)) + "…" : s
+    }
+
+    private static func list(_ body: [String: Any], _ key: String) -> [String] {
+        return ((body[key] as? [Any]) ?? []).prefix(40).compactMap { ($0 as? String).map { String($0.prefix(120)) } }
+    }
+
     func handle(_ message: WKScriptMessage) {
         guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+        let f = { (key: String) in PlayerWindowController.field(body, key) }
         if type == "console" {
-            Diagnostics.console((body["level"] as? String) ?? "log", (body["text"] as? String) ?? "")
+            Diagnostics.console(String(f("level").prefix(10)), f("text"))
+            return
+        }
+        if type == "compat" {
+            let added = PlayerWindowController.list(body, "added")
+            Diagnostics.log("COMPAT  \(f("href")): shimmed \(added.count): " + added.joined(separator: ", "))
+            return
+        }
+        if type == "drm" {
+            let results = PlayerWindowController.list(body, "results")
+            let legacy = (body["legacy"] as? Bool) == true ? "present" : "absent"
+            let legacyFps = (body["legacyFps"] as? Bool) == true ? "yes" : "no"
+            Diagnostics.log("DRM  " + results.joined(separator: "; ") + "  | WebKitMediaKeys \(legacy), legacy FairPlay \(legacyFps)")
+            SelfTest.note("drm", results.joined(separator: "; "))
+            return
+        }
+        if type == "render" {
+            let line = "RENDER  \(f("href")): \(body["elements"] as? Int ?? -1) elements, \(body["textLength"] as? Int ?? -1) chars of text, root \(f("root"))"
+                + ((body["unsupported"] as? Bool) == true ? ", says UNSUPPORTED BROWSER" : "")
+                + ((body["loginForm"] as? Bool) == true ? ", login form present" : "")
+                + ", title \"\(f("title"))\""
+            Diagnostics.log(line)
+            SelfTest.note("render", line)
             return
         }
         if type == "jsError" {
-            var line = "JS  " + ((body["text"] as? String) ?? "error")
-            if let src = body["src"] as? String, !src.isEmpty {
+            var line = "JS  " + f("text").ifEmpty("error")
+            let src = f("src")
+            if !src.isEmpty {
                 line += "  (" + (URL(string: src).map { Diagnostics.describe($0) } ?? src)
                 if let n = body["line"] as? Int, n > 0 { line += ":\(n)" }
                 line += ")"
@@ -441,18 +483,22 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
             return
         }
         if type == "features" {
-            let missing = (body["missing"] as? [String]) ?? []
-            let page = (body["href"] as? String) ?? ""
-            Diagnostics.log(missing.isEmpty ? "FEATURES  \(page): nothing missing"
-                                            : "FEATURES  \(page): missing " + missing.joined(separator: "; "))
+            let page = f("href")
+            let syntax = PlayerWindowController.list(body, "syntax")
+            let api = PlayerWindowController.list(body, "api")
+            let css = PlayerWindowController.list(body, "css")
+            Diagnostics.log("FEATURES  \(page): SYNTAX missing (no shim possible): " + (syntax.isEmpty ? "none" : syntax.joined(separator: "; ")))
+            Diagnostics.log("FEATURES  \(page): API missing natively (shim \(Compat.enabled ? "on" : "off")): " + (api.isEmpty ? "none" : api.joined(separator: "; ")))
+            Diagnostics.log("FEATURES  \(page): CSS missing: " + (css.isEmpty ? "none" : css.joined(separator: "; ")))
             return
         }
         if type == "problem" {
-            Diagnostics.log("SPOTIFY SAYS  \((body["text"] as? String) ?? "")")
+            Diagnostics.log("SPOTIFY SAYS  \(f("text"))")
+            SelfTest.note("spotify says", f("text"))
         }
-        if type == "problem" && !warnedAboutPlayback {
+        if type == "problem" && !warnedAboutPlayback && !SelfTest.isRunning {
             warnedAboutPlayback = true
-            let said = (body["text"] as? String) ?? "it can't play here"
+            let said = f("text").ifEmpty("it can't play here")
             let alert = NSAlert()
             alert.messageText = "Spotify won't play in this window"
             alert.informativeText = "Spotify says: \u{201C}\(said)\u{201D}.\n\nThis Mac's built-in web engine may not support Spotify's copy protection. Firefox does, and still runs on macOS 10.15."
@@ -566,8 +612,29 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
         let ns = error as NSError
         if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return }   // our own redirects
         Diagnostics.log("LOAD ERROR  \(ns.domain) \(ns.code): \(ns.localizedDescription)")
+        SelfTest.note("load error", "\(ns.code) \(ns.localizedDescription)")
+        if ns.domain == NSURLErrorDomain && ns.code != NSURLErrorCancelled {
+            showLoadError(ns)
+        }
         splashNavigation("error \(ns.code): \(ns.localizedDescription)", "FAILED", cls: "warn", pct: 90)
         if !splashLoaded { splashLoaded = true; finishSplashIfReady() }
+    }
+
+    /// Without this, a failed first load leaves a silent black window.
+    private func showLoadError(_ error: NSError) {
+        let failing = (error.userInfo[NSURLErrorFailingURLErrorKey] as? URL) ?? PlayerWindowController.home
+        let message = PlayerWindowController.jsString(error.localizedDescription)
+        let retry = PlayerWindowController.jsString(failing.absoluteString)
+        let html = """
+        <!doctype html><meta charset="utf-8"><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;
+        background:#0F1230;color:#FBEFDF;font:15px -apple-system,Helvetica,sans-serif;text-align:center">
+        <div><div style="font-size:42px">&#9724;&#65038;</div><h2 style="font-weight:500">Can't reach Spotify</h2>
+        <p id="m" style="opacity:.7;max-width:420px"></p>
+        <button id="r" style="margin-top:12px;padding:9px 22px;border:0;background:#FBEFDF;color:#1A1230;font-weight:600">Try again</button>
+        </div><script>document.getElementById('m').textContent=\(message);
+        document.getElementById('r').onclick=function(){location.href=\(retry)}</script></body>
+        """
+        webView.loadHTMLString(html, baseURL: nil)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -618,6 +685,7 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
 
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        if SelfTest.isRunning { Diagnostics.log("PAGE ALERT  \(message.prefix(200))"); completionHandler(); return }
         let alert = NSAlert()
         alert.messageText = message
         alert.runModal()

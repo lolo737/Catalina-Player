@@ -1,0 +1,66 @@
+# Evidence-gathering run for the Catalina audit. Two jobs:
+#  1. scan: what Spotify's public web player code needs, versus Safari 15.6 (Catalina's engine).
+#  2. app:  the real app on GitHub's Mac (macOS 14, a modern engine) as a control experiment:
+#           if the wrapper works here but not on 10.15, the wrapper isn't the problem.
+# Nothing signs in or plays audio. Results are uploaded as the "selftest-results" artifact.
+name: Self-test
+on:
+  workflow_dispatch:
+  push:
+    branches: ["audit/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      - run: npm ci
+      - name: Unit tests (in-page scripts, shim, probes)
+        run: npm test
+      - name: Scan Spotify's public web player for Safari 15.6 compatibility
+        run: |
+          mkdir -p results
+          node scripts/scan-spotify-bundle.mjs | tee results/scan.md
+          mv scan.json results/scan.json
+          cat results/scan.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: selftest-scan
+          path: results/
+
+  app:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v5
+      - name: Compile for this Mac
+        run: |
+          APP="build/Catalina Player.app"
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          swiftc -O -target arm64-apple-macos11.0 Sources/*.swift -o "$APP/Contents/MacOS/CatalinaPlayer"
+          cp Resources/Info.plist "$APP/Contents/Info.plist"
+          codesign --force --deep --sign - "$APP"
+      - name: Run unattended, once per browser identity
+        run: |
+          mkdir -p results
+          for ua in honest modern; do
+            rm -f ~/Library/Logs/CatalinaPlayer*
+            "build/Catalina Player.app/Contents/MacOS/CatalinaPlayer" --selftest 45 --ua $ua &
+            pid=$!
+            for i in $(seq 1 90); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+            kill $pid 2>/dev/null || true
+            for f in ~/Library/Logs/CatalinaPlayer*; do cp "$f" "results/$ua-$(basename "$f")"; done
+            echo "### identity: $ua" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep -E "FEATURES|COMPAT|DRM|RENDER|SPOTIFY SAYS|LOAD ERROR|SELF-TEST|HTTP|^identity" "results/$ua-CatalinaPlayer.log" | cut -c1-300 >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          done
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: selftest-app
+          path: results/

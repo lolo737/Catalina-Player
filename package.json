@@ -2,6 +2,12 @@
   "name": "catalina-player-tests",
   "private": true,
   "description": "Tests for the in-page scripts. The app itself is Swift: see build.sh.",
-  "scripts": { "test": "node --test test/scripts.test.js" },
-  "devDependencies": { "jsdom": "^24.1.3" }
+  "scripts": {
+    "test": "node --test test/scripts.test.js test/compat.test.js"
+  },
+  "devDependencies": {
+    "acorn": "^8.19.0",
+    "acorn-walk": "^8.3.5",
+    "jsdom": "^24.1.3"
+  }
 }

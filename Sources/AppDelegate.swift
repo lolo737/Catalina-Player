@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         console.window?.orderFront(nil)
         }
         NSApp.activate(ignoringOtherApps: true)
+        SelfTest.start(player)
     }
 
     // Closing the window hides it; the music keeps playing until you quit.
