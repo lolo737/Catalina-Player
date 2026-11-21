@@ -45,25 +45,37 @@ final class PlayerWindowController: NSWindowController, NSWindowDelegate, WKNavi
 
     static let home = URL(string: "https://open.spotify.com/")!
 
-    /// Spotify turns away browsers it considers too old ("Unsupported browser"), judging by the
-    /// version number in this string. Every current Safari still reports "Mac OS X 10_15_7",
-    /// so this reads as a recent Safari. The engine underneath is still Catalina's WebKit.
-    /// If Spotify ever moves the goalposts, override it without rebuilding:
-    ///   defaults write io.github.lolo737.catalinaplayer UserAgent "Mozilla/5.0 (...)"
-    static let defaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15"
+    /// Which browser the window says it is.
+    ///
+    /// Default: the truth, i.e. this Mac's own Safari version (15.6.1 on Catalina). Spotify answers that
+    /// with its "Unsupported browser" page, and the app then offers Firefox.
+    ///
+    /// The audit (AUDIT.md, Nov 2026) found why the earlier "current Safari" disguise didn't help:
+    /// Spotify then sends its real player, whose code uses syntax Safari 15.6 can't parse (regex
+    /// lookbehind, class static blocks), so the window goes blank. Pretending also sits badly with
+    /// Spotify's rule against circumventing its technology. It's kept only as an opt-in experiment:
+    ///   defaults write io.github.lolo737.catalinaplayer UserAgent modern
+    ///   defaults delete io.github.lolo737.catalinaplayer UserAgent        (back to honest)
+    static let modernUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15"
+
+    static let honestUserAgent: String = {
+        let plist = "/Applications/Safari.app/Contents/Info.plist"
+        let version = (NSDictionary(contentsOfFile: plist)?["CFBundleShortVersionString"] as? String)
+            .flatMap { v in v.allSatisfy { $0.isNumber || $0 == "." } ? v : nil } ?? "15.6.1"
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        // Safari has reported 10_15_7 on every macOS since Big Sur; report the real one only below that.
+        let osToken = os.majorVersion == 10 ? "10_\(os.minorVersion)_\(os.patchVersion)" : "10_15_7"
+        return "Mozilla/5.0 (Macintosh; Intel Mac OS X \(osToken)) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/\(version) Safari/605.1.15"
+    }()
 
     static var userAgent: String {
         if SelfTest.identity == "honest" { return honestUserAgent }
-        if SelfTest.identity == "modern" { return defaultUserAgent }
-        if let custom = UserDefaults.standard.string(forKey: "UserAgent"), !custom.isEmpty { return custom }
-        return defaultUserAgent
+        if SelfTest.identity == "modern" { return modernUserAgent }
+        if let custom = UserDefaults.standard.string(forKey: "UserAgent"), !custom.isEmpty {
+            return custom == "modern" ? modernUserAgent : custom
+        }
+        return honestUserAgent
     }
-
-    /// The sign-in pages run bot checks that compare what the browser claims to be with how it
-    /// actually behaves. Claiming Safari 18 on a Safari 15 engine looks like a bot, and the login
-    /// quietly loops. So the sign-in pages get the honest answer: Safari 15.6 on Catalina.
-    /// Override with: defaults write io.github.lolo737.catalinaplayer LoginUserAgent "..."
-    static let honestUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6.1 Safari/605.1.15"
 
     static let signInHosts = ["accounts.spotify.com", "challenge.spotify.com", "login.spotify.com"]
 
